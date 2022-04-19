@@ -523,8 +523,29 @@ var (
 	policyRolesSuffixRegex = regexp.MustCompile(`}$`)
 )
 
+var (
+	r9 = regexp.MustCompile(`^9`)
+	r1012 = regexp.MustCompile(`^[10-12]`)
+)
+
 func (d *PostgresDatabase) getPolicyDefs(table string) ([]string, error) {
-	const query = "SELECT policyname, permissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
+  version, err := d.Version()
+	if err != nil {
+		return nil, err
+	}
+
+	const query13 = "SELECT policyname, permissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
+	const query1012 = "SELECT policyname, polpermissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
+	const query9 = "SELECT policyname, '', roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
+
+	var query string
+	if r9.MatchString(version) {
+		query = query9
+	} else if r1012.MatchString(version) {
+		query = query1012
+	} else {
+		query = query13
+	}
 	schema, table := SplitTableName(table)
 	rows, err := d.db.Query(query, schema, table)
 	if err != nil {
@@ -557,6 +578,31 @@ func (d *PostgresDatabase) getPolicyDefs(table string) ([]string, error) {
 		defs = append(defs, def+";")
 	}
 	return defs, nil
+}
+
+func (d *PostgresDatabase) Version() (string, error) {
+	rows, err := d.db.Query("SELECT name, setting, min_val, max_val FROM pg_settings WHERE name = 'server_version_num'")
+
+	// ex) on PostgreSQL 9.6.24
+	// | name               | setting | min_val | max_val |
+	// | ------------------ | ------- | ------- | ------- |
+	// | server_version_num | 90624   | 90624   | 90624   |
+
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var version string
+	for rows.Next() {
+		var name, setting, min_val, max_val string
+		err = rows.Scan(&name, &setting, &min_val, &max_val)
+		if err != nil {
+			return "", err
+		}
+		version = setting
+	}
+	return version, nil
 }
 
 func (d *PostgresDatabase) DB() *sql.DB {
@@ -600,3 +646,4 @@ func SplitTableName(table string) (string, string) {
 	}
 	return schema, table
 }
+

@@ -523,28 +523,21 @@ var (
 	policyRolesSuffixRegex = regexp.MustCompile(`}$`)
 )
 
-var (
-	r9 = regexp.MustCompile(`^9`)
-	r1012 = regexp.MustCompile(`^[10-12]`)
-)
-
 func (d *PostgresDatabase) getPolicyDefs(table string) ([]string, error) {
-  version, err := d.Version()
+	version, err := d.Version()
 	if err != nil {
 		return nil, err
 	}
 
-	const query13 = "SELECT policyname, permissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
-	const query1012 = "SELECT policyname, polpermissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
-	const query9 = "SELECT policyname, '', roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
+	const queryPermissive = "SELECT policyname, permissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
+	const queryNone = "SELECT policyname, '', roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = $1 AND tablename = $2;"
 
 	var query string
+	var r9 = regexp.MustCompile(`^9`)
 	if r9.MatchString(version) {
-		query = query9
-	} else if r1012.MatchString(version) {
-		query = query1012
+		query = queryNone
 	} else {
-		query = query13
+		query = queryPermissive
 	}
 	schema, table := SplitTableName(table)
 	rows, err := d.db.Query(query, schema, table)
@@ -646,4 +639,3 @@ func SplitTableName(table string) (string, string) {
 	}
 	return schema, table
 }
-
